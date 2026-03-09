@@ -1008,20 +1008,44 @@ function renderSummary(){
 }
 
 function exportXL(){
-  const mf=document.getElementById('sum-month').value;
-  let list=[...withdrawals];if(mf) list=list.filter(w=>w.withdrawal_date?.startsWith(mf));
-  const wb=XLSX.utils.book_new();
-  const byDate={};
-  list.forEach(w=>{const d=w.withdrawal_date?.split('T')[0];if(!d)return;if(!byDate[d])byDate[d]={count:0,items:0,val:0};byDate[d].count++;byDate[d].items+=(w.total_items||0);try{(Array.isArray(w.items)?w.items:JSON.parse(w.items||'[]')).forEach(i=>{byDate[d].val+=(i.price||0)*(i.qty||0);});}catch(e){}});
-  const s1=[['Date','Transactions','Items','Value'],...Object.keys(byDate).sort().map(d=>[d,byDate[d].count,byDate[d].items,byDate[d].val])];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s1),'Daily');
-  const s2=[['Doc','Date','Requester','Dept','Product','Qty','Price','Total']];
-  list.forEach(w=>{try{(Array.isArray(w.items)?w.items:JSON.parse(w.items||'[]')).forEach(i=>{s2.push([w.doc_number,w.withdrawal_date?.split('T')[0],w.requester,w.department,i.name,i.qty,i.price,(i.price||0)*(i.qty||0)]);});}catch(e){}});
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s2),'Detail');
-  const s3=[['Code','Product','Unit','Stock','Price','Value','Status'],...products.map(p=>[p.product_code,p.product_name,p.unit,p.current_stock,p.price,(p.current_stock||0)*(p.price||0),p.current_stock<=p.min_stock?'Low':'OK'])];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s3),'Stock');
-  XLSX.writeFile(wb,`Report_${mf||new Date().toISOString().split('T')[0]}.xlsx`);
-  toast(lang==='th'?'ดาวน์โหลดแล้ว':'Exported','success');
+  try {
+    if(typeof XLSX === 'undefined'){
+      toast(lang==='th'?'ไลบรารี Excel ยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่':'Excel library not ready, please wait and retry','error');
+      return;
+    }
+    const mf=document.getElementById('sum-month').value;
+    let list=[...withdrawals];if(mf) list=list.filter(w=>w.withdrawal_date?.startsWith(mf));
+    const wb=XLSX.utils.book_new();
+    const byDate={};
+    list.forEach(w=>{
+      const d=w.withdrawal_date?.split('T')[0];if(!d)return;
+      if(!byDate[d])byDate[d]={count:0,items:0,val:0};
+      byDate[d].count++;byDate[d].items+=(w.total_items||0);
+      try{(Array.isArray(w.items)?w.items:JSON.parse(w.items||'[]')).forEach(i=>{byDate[d].val+=(i.price||0)*(i.qty||0);});}catch(e){}
+    });
+    const s1=[
+      ['วันที่','จำนวนครั้งเบิก','จำนวนรายการ','มูลค่า (บาท)'],
+      ...Object.keys(byDate).sort().map(d=>[d,byDate[d].count,byDate[d].items,byDate[d].val])
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s1),'สรุปรายวัน');
+    const s2=[['เลขที่เอกสาร','วันที่','ผู้เบิก','แผนก','สินค้า','จำนวน','ราคา/หน่วย','รวม']];
+    list.forEach(w=>{
+      try{(Array.isArray(w.items)?w.items:JSON.parse(w.items||'[]')).forEach(i=>{
+        s2.push([w.doc_number,w.withdrawal_date?.split('T')[0],w.requester,w.department,i.name,i.qty,i.price,(i.price||0)*(i.qty||0)]);
+      });}catch(e){}
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s2),'รายละเอียด');
+    const s3=[
+      ['รหัสสินค้า','ชื่อสินค้า','หน่วย','คงเหลือ','ราคา/หน่วย','มูลค่า','สถานะ'],
+      ...products.map(p=>[p.product_code,p.product_name,p.unit,p.current_stock,p.price,(p.current_stock||0)*(p.price||0),p.current_stock<=p.min_stock?'ใกล้หมด':'ปกติ'])
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s3),'สินค้าคงเหลือ');
+    XLSX.writeFile(wb,`รายงาน_${mf||new Date().toISOString().split('T')[0]}.xlsx`);
+    toast(lang==='th'?'ดาวน์โหลด Excel สำเร็จ ✅':'Exported successfully ✅','success');
+  } catch(err) {
+    console.error('Export error:',err);
+    toast(lang==='th'?'เกิดข้อผิดพลาด: '+err.message:'Export failed: '+err.message,'error');
+  }
 }
 
 // ============================================================
